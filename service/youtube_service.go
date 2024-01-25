@@ -89,6 +89,7 @@ func FetchAndStoreVideos(query string) error {
 	}
 }
 
+// should be private
 func performFetchAndStore(query string) error {
 	call := youtubeClient.Search.List([]string{"snippet"}).
 		Q(query).
@@ -143,6 +144,7 @@ func switchAPIKey() {
 	initYouTubeClient(apiKeys[apiKeyIndex])
 }
 
+// should be private
 func storeVideosInMongoDB(videos []model.Video) error {
 	databaseName := os.Getenv("DATABASE_NAME")
 	collectionName := os.Getenv("COLLECTION_NAME")
@@ -176,7 +178,7 @@ func GetPaginatedVideos(page, pageSize int) ([]model.Video, error) {
 	options := options.Find().
 		SetSkip(int64((page - 1) * pageSize)).
 		SetLimit(int64(pageSize)).
-		SetSort(bson.D{{Key: "publishedat", Value: -1}})
+		SetSort(bson.D{{Key: "publishedat", Value: -1}}) // To retrieve the stored videos in reverse chronological order.
 
 	cursor, err := collection.Find(context.Background(), bson.D{}, options)
 	if err != nil {

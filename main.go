@@ -13,9 +13,9 @@ import (
 func main() {
 	router := gin.Default()
 
-	// Enable CORS
+	// Enable CORS (just in case if we have frontend)
 	config := cors.DefaultConfig()
-	config.AllowOrigins = []string{"http://localhost:3000"} // Update with your Next.js app URL
+	config.AllowOrigins = []string{"http://localhost:3000"}
 	router.Use(cors.New(config))
 
 	// Routes
