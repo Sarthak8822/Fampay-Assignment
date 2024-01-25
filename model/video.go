@@ -1,7 +1,7 @@
 // model/video.go
-// model/video.go
 package model
 
+// Video struct to represent video data
 type Video struct {
 	ID          string     `json:"id"`
 	Title       string     `json:"title"`
@@ -11,6 +11,7 @@ type Video struct {
 	// Add other fields as needed
 }
 
+// Thumbnails struct to represent video thumbnail URLs
 type Thumbnails struct {
 	Default string `json:"default"`
 	Medium  string `json:"medium"`
