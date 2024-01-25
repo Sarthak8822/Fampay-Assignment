@@ -15,13 +15,6 @@ import (
 	"google.golang.org/api/youtube/v3"
 )
 
-const (
-	apiKey         = "AIzaSyB_IW1vLGuT_Oyco7cT6VwArK1Ff1OCc3o"
-	mongoURI       = "mongodb+srv://sarthakpravin08:fampayassignment@cluster0.82iwxhm.mongodb.net/"
-	databaseName   = "All_Videos"
-	collectionName = "videos"
-)
-
 var mongoClient *mongo.Client
 var youtubeService *youtube.Service
 
@@ -122,6 +115,8 @@ func StoreVideosInMongoDB(videos []model.Video) error {
 }
 
 func GetLatestVideos(page, pageSize int) ([]model.Video, error) {
+	databaseName := os.Getenv("DATABASE_NAME")
+	collectionName := os.Getenv("COLLECTION_NAME")
 	collection := mongoClient.Database(databaseName).Collection(collectionName)
 
 	options := options.Find().
