@@ -9,6 +9,13 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// Use environment variables for configuration
+const (
+	apiRouteLatestVideos    = "/latest-videos"
+	apiRoutePaginatedVideos = "/paginated-videos"
+	defaultPort             = ":8080"
+)
+
 func main() {
 	router := gin.Default()
 
@@ -18,8 +25,8 @@ func main() {
 		c.JSON(500, gin.H{"error": "Internal Server Error"})
 	}))
 
-	router.GET("/latest-videos", api.GetLatestVideosHandler)
-	router.GET("/paginated-videos", api.GetPaginatedVideosHandler)
+	router.GET(apiRouteLatestVideos, api.GetLatestVideosHandler)
+	router.GET(apiRoutePaginatedVideos, api.GetPaginatedVideosHandler)
 
 	// Start continuous background fetching in a goroutine
 	go func() {
@@ -28,5 +35,5 @@ func main() {
 		}
 	}()
 
-	router.Run(":8080")
+	router.Run(defaultPort)
 }

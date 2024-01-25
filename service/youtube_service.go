@@ -21,7 +21,16 @@ var youtubeService *youtube.Service
 const fetchInterval = 10 * time.Second
 
 func init() {
-	mongoURI := os.Getenv("MONGO_URI")
+	mongoURI, exists := os.LookupEnv("MONGO_URI")
+	if !exists {
+		log.Fatal("MONGO_URI environment variable is not set")
+	}
+
+	apiKey, exists := os.LookupEnv("API_KEY")
+	if !exists {
+		log.Fatal("API_KEY environment variable is not set")
+	}
+
 	client, err := mongo.Connect(context.Background(), options.Client().ApplyURI(mongoURI))
 	if err != nil {
 		log.Fatalf("Error creating MongoDB client: %v", err)
@@ -30,7 +39,7 @@ func init() {
 		log.Fatalf("Error pinging MongoDB server: %v", err)
 	}
 	mongoClient = client
-	apiKey := os.Getenv("API_KEY")
+
 	youtubeService, err = youtube.NewService(context.Background(), option.WithAPIKey(apiKey))
 	if err != nil {
 		log.Fatalf("Unable to create YouTube service: %v", err)
@@ -38,17 +47,15 @@ func init() {
 }
 
 func FetchAndStoreVideos(query string) error {
-	ticker := time.NewTicker(fetchInterval)
-	defer ticker.Stop()
-
 	for {
 		if err := performFetchAndStore(query); err != nil {
 			log.Printf("Error fetching and storing videos: %v", err)
 		} else {
 			log.Print("Fetched and stored videos successfully")
 		}
-		<-ticker.C
+		time.Sleep(fetchInterval)
 	}
+
 }
 
 func performFetchAndStore(query string) error {
@@ -82,14 +89,14 @@ func performFetchAndStore(query string) error {
 		videos = append(videos, video)
 	}
 
-	if err := StoreVideosInMongoDB(videos); err != nil {
+	if err := storeVideosInMongoDB(videos); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func StoreVideosInMongoDB(videos []model.Video) error {
+func storeVideosInMongoDB(videos []model.Video) error {
 	databaseName := os.Getenv("DATABASE_NAME")
 	collectionName := os.Getenv("COLLECTION_NAME")
 	collection := mongoClient.Database(databaseName).Collection(collectionName)
