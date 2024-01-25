@@ -30,23 +30,3 @@ func GetPaginatedVideosHandler(c *gin.Context) {
 
 	c.JSON(http.StatusOK, videos)
 }
-
-func GetLatestVideosHandler(c *gin.Context) {
-	page, _ := strconv.Atoi(c.Query("page"))
-	if page < 1 {
-		page = 1
-	}
-
-	pageSize, _ := strconv.Atoi(c.Query("pageSize"))
-	if pageSize <= 0 {
-		pageSize = defaultPageSize
-	}
-
-	videos, err := service.GetLatestVideos(page, pageSize)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error"})
-		return
-	}
-
-	c.JSON(http.StatusOK, videos)
-}

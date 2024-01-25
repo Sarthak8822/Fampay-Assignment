@@ -6,30 +6,41 @@ import (
 	"context"
 	"log"
 	"os"
+	"strings"
+	"sync"
 	"time"
 
+	"github.com/joho/godotenv"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
 	"google.golang.org/api/youtube/v3"
 )
 
-var mongoClient *mongo.Client
-var youtubeService *youtube.Service
+var (
+	mongoClient   *mongo.Client
+	youtubeClient *youtube.Service
+	apiKeys       []string
+	apiKeyIndex   int
+	apiKeyMutex   sync.Mutex
+)
 
 const fetchInterval = 10 * time.Second
 
 func init() {
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatal("Error loading .env file, Please add a .env file if not Added")
+	}
+
 	mongoURI, exists := os.LookupEnv("MONGO_URI")
 	if !exists {
 		log.Fatal("MONGO_URI environment variable is not set")
 	}
 
-	apiKey, exists := os.LookupEnv("API_KEY")
-	if !exists {
-		log.Fatal("API_KEY environment variable is not set")
-	}
+	apiKeys = getAPIKeys()
 
 	client, err := mongo.Connect(context.Background(), options.Client().ApplyURI(mongoURI))
 	if err != nil {
@@ -40,10 +51,31 @@ func init() {
 	}
 	mongoClient = client
 
-	youtubeService, err = youtube.NewService(context.Background(), option.WithAPIKey(apiKey))
+	// Initialize the YouTube client with the first API key
+	initYouTubeClient(apiKeys[0])
+}
+
+func initYouTubeClient(apiKey string) {
+	var err error
+	youtubeClient, err = youtube.NewService(context.Background(), option.WithAPIKey(apiKey))
 	if err != nil {
 		log.Fatalf("Unable to create YouTube service: %v", err)
 	}
+}
+
+func getAPIKeys() []string {
+	apiKeyStr, exists := os.LookupEnv("API_KEYS")
+	if !exists {
+		log.Fatal("API_KEYS environment variable is not set")
+	}
+	keys := strings.Split(apiKeyStr, ",")
+	if len(keys) == 0 {
+		log.Fatal("No API keys provided")
+	}
+	if len(keys) < 2 {
+		log.Fatal("Provide More API keys to handle 403 Errors")
+	}
+	return keys
 }
 
 func FetchAndStoreVideos(query string) error {
@@ -55,16 +87,22 @@ func FetchAndStoreVideos(query string) error {
 		}
 		time.Sleep(fetchInterval)
 	}
-
 }
 
 func performFetchAndStore(query string) error {
-	call := youtubeService.Search.List([]string{"snippet"}).
+	call := youtubeClient.Search.List([]string{"snippet"}).
 		Q(query).
 		MaxResults(20)
 
 	response, err := call.Do()
 	if err != nil {
+		// Check if the error is due to quota exhaustion
+		if apiErr, ok := err.(*googleapi.Error); ok && apiErr.Code == 403 {
+			log.Printf("YouTube API Error: %v", apiErr)
+			// If Yes then switch it to another API_KEY
+			switchAPIKey()
+			return performFetchAndStore(query)
+		}
 		return err
 	}
 
@@ -96,6 +134,15 @@ func performFetchAndStore(query string) error {
 	return nil
 }
 
+// The switchAPIKey function is introduced to manage the rotation of API keys atomically using a mutex.
+func switchAPIKey() {
+	apiKeyMutex.Lock()
+	defer apiKeyMutex.Unlock()
+
+	apiKeyIndex = (apiKeyIndex + 1) % len(apiKeys)
+	initYouTubeClient(apiKeys[apiKeyIndex])
+}
+
 func storeVideosInMongoDB(videos []model.Video) error {
 	databaseName := os.Getenv("DATABASE_NAME")
 	collectionName := os.Getenv("COLLECTION_NAME")
@@ -121,34 +168,6 @@ func storeVideosInMongoDB(videos []model.Video) error {
 	return nil
 }
 
-func GetLatestVideos(page, pageSize int) ([]model.Video, error) {
-	databaseName := os.Getenv("DATABASE_NAME")
-	collectionName := os.Getenv("COLLECTION_NAME")
-	collection := mongoClient.Database(databaseName).Collection(collectionName)
-
-	options := options.Find().
-		SetSkip(int64((page - 1) * pageSize)).
-		SetLimit(int64(pageSize)).
-		SetSort(bson.D{{"publishedat", -1}})
-
-	cursor, err := collection.Find(context.Background(), bson.D{}, options)
-	if err != nil {
-		return nil, err
-	}
-	defer cursor.Close(context.Background())
-
-	var videos []model.Video
-	for cursor.Next(context.Background()) {
-		var video model.Video
-		if err := cursor.Decode(&video); err != nil {
-			return nil, err
-		}
-		videos = append(videos, video)
-	}
-
-	return videos, nil
-}
-
 func GetPaginatedVideos(page, pageSize int) ([]model.Video, error) {
 	databaseName := os.Getenv("DATABASE_NAME")
 	collectionName := os.Getenv("COLLECTION_NAME")
@@ -157,7 +176,7 @@ func GetPaginatedVideos(page, pageSize int) ([]model.Video, error) {
 	options := options.Find().
 		SetSkip(int64((page - 1) * pageSize)).
 		SetLimit(int64(pageSize)).
-		SetSort(bson.D{{"publishedat", -1}})
+		SetSort(bson.D{{Key: "publishedat", Value: -1}})
 
 	cursor, err := collection.Find(context.Background(), bson.D{}, options)
 	if err != nil {
