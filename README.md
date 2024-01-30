@@ -73,6 +73,8 @@ GET
 
   The project includes a continuous background fetching mechanism that fetches and stores YouTube videos with a specified query ("official" in this case). The background fetch is initiated in a goroutine when the server starts.
 
+## My Resume
+  [Sarthak_Modhe_Resume](https://drive.google.com/file/d/1y0GfuRRlVMOAiZ6gqAqj4-V4nWX0vY86/view?usp=drivesdk)
 
 ## Contribute
   If you'd like to contribute to this project, please follow the standard GitHub flow:
